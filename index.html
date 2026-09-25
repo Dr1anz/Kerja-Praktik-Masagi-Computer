@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Masagi Computer Service</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Lexend:wght@500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#10121c; --ink-soft:#4b5265;
+    --accent:#4338ca; --accent2:#6d28d9; --accent-soft:#eef0ff;
+    --bg:#f3f4f9; --line:#e7e8f0;
+    --shadow-sm:0 1px 2px rgba(16,18,28,.04);
+    --shadow-md:0 1px 1px rgba(16,18,28,.03),0 10px 26px -14px rgba(16,18,28,.18);
+    --shadow-lg:0 20px 46px -18px rgba(16,18,28,.28);
+  }
+  *{font-family:'Inter',ui-sans-serif,system-ui,sans-serif}
+  h1,h2,h3,.font-display{font-family:'Lexend','Inter',ui-sans-serif,system-ui,sans-serif}
+  body{background:
+    radial-gradient(1100px 520px at 100% -8%, #eef0ff 0%, rgba(238,240,255,0) 55%),
+    var(--bg);
+    color:var(--ink);
+  }
+  .hidden{display:none!important}
+
+  /* soft, tinted status badges instead of solid chips */
+  .badge{display:inline-flex;align-items:center;gap:.4rem;padding:.32rem .75rem;border-radius:9999px;font-size:.7rem;font-weight:700;letter-spacing:.01em;background:var(--bg-tint,#eef0ff);color:var(--fg-tint,#4338ca);border:1px solid var(--bd-tint,rgba(67,56,202,.16))}
+  .badge::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor;flex:none}
+
+  .card{background:#fff;border:1px solid var(--line);border-radius:1rem;box-shadow:var(--shadow-md)}
+
+  th{font-size:.66rem;text-transform:uppercase;letter-spacing:.05em;color:#8b90a3;font-weight:700;padding:.8rem 1.1rem;text-align:left;background:#fafafd;border-bottom:1px solid var(--line);white-space:nowrap}
+  td{padding:.85rem 1.1rem;font-size:.85rem;border-top:1px solid #f2f2f7;color:#333748;vertical-align:middle}
+  tbody tr{transition:background .12s}
+  tbody tr:hover{background:#faf9ff}
+
+  input,select,textarea{width:100%;border:1px solid #dfe1ea;border-radius:.6rem;padding:.62rem .85rem;font-size:.85rem;background:#fcfcfe;transition:border-color .15s,box-shadow .15s,background .15s;color:var(--ink)}
+  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent);background:#fff;box-shadow:0 0 0 3.5px rgba(67,56,202,.13)}
+  input::placeholder,textarea::placeholder{color:#a8adbd}
+  label{font-size:.78rem;font-weight:600;color:var(--ink-soft);display:block;margin-bottom:.4rem}
+
+  .btn{padding:.62rem 1.25rem;border-radius:.65rem;font-size:.8rem;font-weight:700;color:#fff;display:inline-flex;align-items:center;gap:.4rem;cursor:pointer;border:none;transition:transform .12s ease,box-shadow .12s ease,filter .12s ease;box-shadow:0 1px 2px rgba(16,18,28,.06)}
+  .btn:hover{transform:translateY(-1px);filter:brightness(1.06)}
+  .btn:active{transform:translateY(0);filter:brightness(.98)}
+
+  .navlink{padding:.62rem .95rem;border-radius:.7rem;font-size:.85rem;font-weight:600;color:#aeb3ce;display:flex;align-items:center;gap:.7rem;cursor:pointer;transition:background .15s,color .15s}
+  .navlink .ic{font-size:.9rem;width:1.6rem;height:1.6rem;border-radius:.5rem;display:inline-flex;align-items:center;justify-content:center;background:rgba(255,255,255,.06)}
+  .navlink.active{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;box-shadow:0 8px 18px -6px rgba(67,56,202,.55)}
+  .navlink.active .ic{background:rgba(255,255,255,.18)}
+  .navlink:hover:not(.active){background:rgba(255,255,255,.06);color:#f1f2fb}
+
+  /* stat cards: quiet left accent bar instead of decorative circle */
+  .stat-card{position:relative;overflow:hidden;border-left:3px solid var(--stat-color,#4338ca)}
+
+  ::-webkit-scrollbar{height:8px;width:8px}
+  ::-webkit-scrollbar-thumb{background:#d3d6e3;border-radius:9999px}
+  ::-webkit-scrollbar-thumb:hover{background:#b9bdd1}
+
+  @media (max-width:767px){
+    body{padding-top:env(safe-area-inset-top,0px)}
+  }
+</style>
+</head>
+<body>
+
+<div id="app" class="flex min-h-screen"></div>
+
+<script>
+const STATUS_LABEL = {pemeriksaan:'Pemeriksaan',menunggu_persetujuan:'Menunggu Persetujuan',disetujui:'Disetujui',perbaikan_servis:'Perbaikan / Servis',siap_diambil:'Siap Diambil',selesai:'Selesai',batal:'Batal',tidak_dapat_diperbaiki:'Tidak Dapat Diperbaiki'};
+const STATUS_COLOR = {pemeriksaan:'#4f46e5',menunggu_persetujuan:'#d97706',disetujui:'#2563eb',perbaikan_servis:'#7c3aed',siap_diambil:'#0891b2',selesai:'#16a34a',batal:'#dc2626',tidak_dapat_diperbaiki:'#991b1b'};
+const ROLE_LABEL = {super_admin:'Super Admin',kepala_toko:'Kepala Toko',service_advisor:'Service Advisor',teknisi:'Teknisi'};
+
+let state = { role: 'super_admin', page: 'login' };
+
+const customers = [
+  {id:1,name:'Budi Santoso',type:'biasa',phone:'0812-3456-7890',email:'budi@gmail.com',inst:null,addr:'Jl. Merdeka No. 10, Sukabumi'},
+  {id:2,name:'Dinas Pendidikan Kab. Sukabumi',type:'instansi',phone:'0266-221100',email:'dispendik@sukabumi.go.id',inst:'Dinas Pendidikan Kab. Sukabumi',addr:'Jl. Pelabuhan II, Sukabumi'},
+  {id:3,name:'Siti Aminah',type:'biasa',phone:'0813-2211-9988',email:'',inst:null,addr:'Jl. Pelabuhan Km 3, Sukabumi'},
+];
+const devices = [
+  {id:1,cust:1,type:'laptop',brand:'Asus',model:'X441BA',sn:'SN-88213'},
+  {id:2,cust:2,type:'pc',brand:'Lenovo',model:'ThinkCentre M720',sn:'SN-11002'},
+  {id:3,cust:3,type:'printer',brand:'Epson',model:'L3110',sn:'SN-77451'},
+];
+const orders = [
+  {resi:'MSG-20260910-001',cust:'Budi Santoso',device:'Laptop Asus X441BA',tech:'Rian',status:'perbaikan_servis',type:'service',date:'10/09/2026',cost:250000,fee:75000,part:100000,complaint:'Laptop mati total, tidak bisa charge.',diag:'Kerusakan pada IC power, perlu penggantian komponen.',work:'Sedang proses penggantian IC power.'},
+  {resi:'MSG-20260912-002',cust:'Dinas Pendidikan Kab. Sukabumi',device:'PC Lenovo ThinkCentre M720',tech:'Andi',status:'menunggu_persetujuan',type:'perbaikan',date:'12/09/2026',cost:450000,fee:100000,part:350000,complaint:'PC sering restart sendiri.',diag:'RAM rusak, disarankan ganti baru.',work:'Menunggu persetujuan biaya dari customer.'},
+  {resi:'MSG-20260915-003',cust:'Siti Aminah',device:'Printer Epson L3110',tech:'Rian',status:'siap_diambil',type:'service',date:'15/09/2026',cost:120000,fee:70000,part:50000,complaint:'Hasil print bergaris.',diag:'Head printer kotor, perlu cleaning & catridge baru.',work:'Selesai cleaning & ganti catridge, sudah dites normal.'},
+  {resi:'MSG-20260916-004',cust:'Budi Santoso',device:'Laptop Asus X441BA',tech:'-',status:'selesai',type:'pemeriksaan',date:'16/09/2026',cost:0,fee:50000,part:0,complaint:'Cek kondisi umum sebelum dijual.',diag:'Kondisi baik, tidak ada kerusakan berarti.',work:'Pemeriksaan selesai, laptop dikembalikan.'},
+  {resi:'MSG-20260917-005',cust:'Dinas Pendidikan Kab. Sukabumi',device:'PC Lenovo ThinkCentre M720',tech:'Andi',status:'pemeriksaan',type:'instalasi',date:'17/09/2026',cost:0,fee:80000,part:0,complaint:'Install ulang OS & aplikasi kantor.',diag:'Menunggu jadwal instalasi.',work:'-'},
+];
+const users = [
+  {id:1,name:'Admin Utama',email:'admin@masagi.id',role:'super_admin'},
+  {id:2,name:'Kepala Toko - Dedi',email:'dedi@masagi.id',role:'kepala_toko'},
+  {id:3,name:'Service Advisor - Nita',email:'nita@masagi.id',role:'service_advisor'},
+  {id:4,name:'Teknisi - Rian',email:'rian@masagi.id',role:'teknisi'},
+  {id:5,name:'Teknisi - Andi',email:'andi@masagi.id',role:'teknisi'},
+];
+
+function fmtRp(n){ return 'Rp ' + Number(n||0).toLocaleString('id-ID'); }
+function hexToRgb(h){ h=h.replace('#',''); const n=parseInt(h,16); return [(n>>16)&255,(n>>8)&255,n&255]; }
+function tint(c){ const [r,g,b]=hexToRgb(c); return `--bg-tint:rgba(${r},${g},${b},.1);--fg-tint:${c};--bd-tint:rgba(${r},${g},${b},.22)`; }
+function badge(status){ const c=STATUS_COLOR[status]||'#6b7280'; return `<span class="badge" style="${tint(c)}">${STATUS_LABEL[status]||status}</span>`; }
+function typeBadge(t){ const c=t==='instansi'?'#2563eb':'#6b7280'; return `<span class="badge" style="${tint(c)}">${t==='instansi'?'Instansi':'Biasa'}</span>`; }
+
+function card(title, sub, body, actionsHtml=''){
+  if(!title && !sub && !actionsHtml) return `<div class="card p-5">${body}</div>`;
+  return `<div class="card overflow-hidden"><div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between flex-wrap gap-3 bg-gray-50/40">
+    <div>${title?`<h3 class="font-display font-semibold text-gray-900">${title}</h3>`:''}${sub?`<p class="text-sm text-gray-500 mt-1">${sub}</p>`:''}</div>
+    <div>${actionsHtml}</div></div><div class="p-5">${body}</div></div>`;
+}
+function table(headers, rows){
+  return `<div class="overflow-x-auto"><table class="min-w-full border border-gray-100 rounded-md overflow-hidden">
+  <thead><tr>${headers.map(h=>`<th>${h}</th>`).join('')}</tr></thead>
+  <tbody>${rows.map(r=>`<tr>${r.map(c=>`<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+}
+function field(lbl, inputHtml){ return `<div><label>${lbl}</label>${inputHtml}</div>`; }
+function inp(v='',ph=''){ return `<input value="${v}" placeholder="${ph}">`; }
+function ta(v=''){ return `<textarea rows="3">${v}</textarea>`; }
+function sel(opts, sel=''){ return `<select>${opts.map(o=>`<option ${o===sel?'selected':''}>${o}</option>`).join('')}</select>`; }
+function btn(label, bg='#111827', onclick=''){ return `<span class="btn" style="background:${bg}" onclick="${onclick}">${label}</span>`; }
+function alertBox(text,type='success'){
+  const map={success:['#f0fdf4','#bbf7d0','#15803d'],error:['#fef2f2','#fecaca','#b91c1c']};
+  const [bg,bd,tx]=map[type];
+  return `<div class="mb-4 rounded-lg px-4 py-3 text-sm" style="background:${bg};border:1px solid ${bd};color:${tx}">${text}</div>`;
+}
+
+const NAV = [
+  {id:'dashboard', ic:'📊', label:'Dashboard', roles:['super_admin','kepala_toko','service_advisor']},
+  {id:'technician', ic:'🛠️', label:'Layanan Saya', roles:['teknisi']},
+  {id:'customers', ic:'👥', label:'Data Customer', roles:['super_admin','kepala_toko','service_advisor']},
+  {id:'orders', ic:'🧾', label:'Layanan Perbaikan', roles:['super_admin','kepala_toko','service_advisor']},
+  {id:'reports', ic:'📈', label:'Laporan', roles:['super_admin','kepala_toko','service_advisor']},
+  {id:'users', ic:'🔐', label:'Manajemen User', roles:['super_admin']},
+  {id:'tracking', ic:'📍', label:'Halaman Tracking', roles:['super_admin','kepala_toko','service_advisor','teknisi']},
+  {id:'profile', ic:'⚙️', label:'Profil', roles:['super_admin','kepala_toko','service_advisor','teknisi']},
+  {id:'login', ic:'🔑', label:'Halaman Login', roles:['super_admin','kepala_toko','service_advisor','teknisi']},
+];
+
+function header(title, sub){
+  return `<div class="mb-6"><h2 class="font-display text-2xl font-bold text-gray-900 tracking-tight">${title}</h2><p class="text-sm text-gray-500 mt-1.5">${sub}</p></div>`;
+}
+
+function pageLogin(){
+  return `<div class="min-h-screen w-full flex items-center justify-center -m-8 py-12 px-4 relative overflow-hidden" style="background:radial-gradient(900px 520px at 50% -8%, #2c2470 0%, rgba(44,36,112,0) 60%), linear-gradient(180deg,#0c0e1b,#151233)">
+  <div class="absolute inset-0 opacity-[0.14]" style="background-image:radial-gradient(rgba(255,255,255,.9) 1px, transparent 1px);background-size:22px 22px;mask-image:radial-gradient(600px 420px at 50% 30%,#000,transparent);-webkit-mask-image:radial-gradient(600px 420px at 50% 30%,#000,transparent)"></div>
+
+  <div class="w-full max-w-sm relative">
+    <div class="flex flex-col items-center text-center mb-6">
+      <div class="w-12 h-12 rounded-xl mb-4 flex items-center justify-center text-white font-bold text-lg font-display" style="background:linear-gradient(135deg,var(--accent),#818cf8)">MC</div>
+      <span class="font-display font-semibold text-white text-lg">Masagi Computer</span>
+      <p class="text-indigo-100/60 text-xs mt-1">Service Management</p>
+    </div>
+
+    <div class="bg-white rounded-2xl p-8" style="box-shadow:var(--shadow-lg)">
+      <div class="mb-6 text-center">
+        <h2 class="font-display text-xl font-semibold text-gray-900">Selamat datang kembali</h2>
+        <p class="text-sm text-gray-500 mt-1">Masuk untuk mengelola layanan perbaikan</p>
+      </div>
+      <div class="space-y-4">
+        ${field('Email', inp('admin@masagi.id'))}
+        ${field('Password', '<input type="password" value="********">')}
+        <div class="flex items-center justify-between text-sm">
+          <label class="flex items-center gap-2 text-gray-600"><input type="checkbox" style="width:auto" checked> Ingat saya</label>
+          <span class="text-indigo-600 font-semibold cursor-pointer">Lupa password?</span>
+        </div>
+        <span class="btn w-full justify-center" style="background:linear-gradient(135deg,var(--accent),var(--accent2))" onclick="go('dashboard')">Masuk &rarr;</span>
+      </div>
+    </div>
+
+    <p class="text-center text-xs text-indigo-100/40 mt-6">&copy; 2026 Masagi Computer Service &middot; Sukabumi</p>
+  </div></div>`;
+}
+
+function statCard(icon,label,value,color){
+  return `<div class="card stat-card p-5" style="--stat-color:${color}">
+    <div class="w-10 h-10 rounded-xl flex items-center justify-center text-lg mb-3" style="background:${color}1a">${icon}</div>
+    <p class="text-sm text-gray-500">${label}</p><p class="font-display mt-1 text-2xl font-bold" style="color:${color}">${value}</p></div>`;
+}
+function pageDashboard(){
+  const stats = [['💰','Pendapatan Selesai',fmtRp(orders.filter(o=>o.status==='selesai').reduce((a,o)=>a+o.cost+o.fee+o.part,0)),'#111827'],['👥','Total Customer',customers.length,'#4f46e5'],['💻','Total Perangkat',devices.length,'#0891b2'],['🧾','Total Layanan',orders.length,'#7c3aed']];
+  const sub = [['⏳','Sedang Diproses',orders.filter(o=>o.status==='perbaikan_servis').length,'#7c3aed'],['🕓','Menunggu Persetujuan',orders.filter(o=>o.status==='menunggu_persetujuan').length,'#d97706'],['📦','Siap Diambil',orders.filter(o=>o.status==='siap_diambil').length,'#0891b2'],['✅','Selesai',orders.filter(o=>o.status==='selesai').length,'#16a34a']];
+  const rows = orders.slice(0,5).map(o=>[`<b>${o.resi}</b><div class="text-xs text-gray-400">${o.date}</div>`,o.cust,o.device,badge(o.status),`<span class="text-indigo-600 font-semibold cursor-pointer" onclick="go('orders')">Detail</span>`]);
+  return header('Dashboard','Ringkasan layanan perbaikan perangkat digital Masagi Computer.') +
+  `<div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">${stats.map(s=>statCard(s[0],s[1],s[2],s[3])).join('')}</div>
+  <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">${sub.map(s=>statCard(s[0],s[1],s[2],s[3])).join('')}</div>
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div class="lg:col-span-2">${card('Layanan Terbaru','Lima data layanan perbaikan terakhir.', table(['Resi','Customer','Perangkat','Status','Aksi'], rows), btn('Lihat Semua','#111827',"go('orders')"))}</div>
+    <div class="card p-5">
+      <h3 class="font-bold text-gray-900">Akses Cepat</h3>
+      <div class="space-y-3 mt-4">
+        ${btn('👥 Data Customer','#4f46e5',"go('customers')")}
+        ${btn('🧾 Layanan Perbaikan','#111827',"go('orders')")}
+        ${btn('📈 Laporan Layanan','#047857',"go('reports')")}
+        ${btn('📍 Halaman Tracking','#0891b2',"go('tracking')")}
+      </div>
+    </div>
+  </div>`;
+}
+
+function pageCustomers(){
+  const rows = customers.map(c=>[`<b>${c.name}</b>`, typeBadge(c.type), `${c.phone}<div class="text-xs text-gray-400">${c.email||'-'}</div>`, c.inst||'-', `<span class="text-indigo-600 font-semibold cursor-pointer mr-2" onclick="go('customer-show')">Detail</span><span class="text-yellow-600 font-semibold cursor-pointer mr-2" onclick="go('customer-form')">Edit</span><span class="text-red-600 font-semibold cursor-pointer">Hapus</span>`]);
+  return header('Data Customer','Mengelola data customer biasa dan instansi Masagi Computer.') +
+  card('Daftar Customer','Data customer digunakan untuk pencatatan layanan perbaikan.',
+   `<div class="flex gap-3 mb-4"><input placeholder="Cari nama, nomor HP, atau instansi..."><span class="btn" style="background:#4f46e5">Cari</span></div>` + table(['Customer','Jenis','Kontak','Instansi','Aksi'], rows),
+   btn('Tambah Customer','#111827',"go('customer-form')"));
+}
+
+function pageCustomerForm(){
+  return header('Tambah / Edit Customer','Formulir data customer Masagi Computer.') +
+  card('Form Customer','', `<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    ${field('Nama Customer', inp('Budi Santoso'))}
+    ${field('Jenis Customer', sel(['Biasa','Instansi']))}
+    ${field('No. HP', inp('0812-3456-7890'))}
+    ${field('Email', inp('budi@gmail.com'))}
+    ${field('Nama Instansi (jika instansi)', inp('', 'Kosongkan jika bukan instansi'))}
+    <div class="md:col-span-2">${field('Alamat', ta('Jl. Merdeka No. 10, Sukabumi'))}</div>
+  </div>
+  <div class="mt-6 border-t pt-4">
+    <h4 class="font-bold text-gray-900 text-sm mb-2">Perangkat Terdaftar</h4>
+    ${table(['Jenis','Merk / Model','No. Seri','Aksi'], devices.filter(d=>d.cust===1).map(d=>[d.type,`${d.brand} ${d.model}`,d.sn,`<span class="text-yellow-600 cursor-pointer" onclick="go('device-form')">Edit</span>`]))}
+    ${btn('+ Tambah Perangkat','#4f46e5',"go('device-form')")}
+  </div>
+  <div class="flex justify-end gap-3 mt-6">${btn('Batal','#e5e7eb; color:#111827',"go('customers')")}${btn('Simpan','#111827',"go('customers')")}</div>`);
+}
+
+function pageDeviceForm(){
+  return header('Tambah / Edit Perangkat','Data perangkat milik customer.') +
+  card('Form Perangkat','', `<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    ${field('Jenis Perangkat', sel(['Laptop','PC','Printer','Lainnya']))}
+    ${field('Merk', inp('Asus'))}
+    ${field('Model', inp('X441BA'))}
+    ${field('Nomor Seri', inp('SN-88213'))}
+    <div class="md:col-span-2">${field('Catatan Kondisi Awal', ta('Kondisi fisik baik, tombol power agak keras.'))}</div>
+  </div>
+  <div class="flex justify-end gap-3 mt-6">${btn('Batal','#e5e7eb; color:#111827',"go('customer-form')")}${btn('Simpan','#111827',"go('customer-form')")}</div>`);
+}
+
+function pageCustomerShow(){
+  const c = customers[0];
+  return header('Detail Customer', 'Informasi lengkap data customer.') +
+  `<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+   <div class="md:col-span-1">${card(c.name, '', `${typeBadge(c.type)}<div class="mt-4 text-sm space-y-2 text-gray-700">
+     <div><b>No. HP:</b> ${c.phone}</div><div><b>Email:</b> ${c.email||'-'}</div><div><b>Alamat:</b> ${c.addr}</div>
+   </div>`, btn('Edit','#d97706',"go('customer-form')"))}</div>
+   <div class="md:col-span-2 space-y-6">
+     ${card('Perangkat Terdaftar','', table(['Jenis','Merk/Model','No. Seri'], devices.filter(d=>d.cust===c.id).map(d=>[d.type,`${d.brand} ${d.model}`,d.sn])))}
+     ${card('Riwayat Layanan','', table(['Resi','Perangkat','Status','Tanggal'], orders.filter(o=>o.cust===c.name).map(o=>[o.resi,o.device,badge(o.status),o.date])))}
+   </div></div>`;
+}
+
+function pageOrders(){
+  const rows = orders.map(o=>[`<b>${o.resi}</b><div class="text-xs text-gray-400">${o.date}</div>`, o.cust, o.device, o.tech, badge(o.status), `<span class="text-indigo-600 font-semibold cursor-pointer mr-2" onclick="go('order-show')">Detail</span><span class="text-yellow-600 font-semibold cursor-pointer" onclick="go('order-form')">Edit</span>`]);
+  return header('Layanan Perbaikan','Mengelola data layanan perbaikan perangkat digital Masagi Computer.') +
+  card('Daftar Layanan Perbaikan','Data layanan mencatat resi, customer, perangkat, keluhan, teknisi, dan status perbaikan.',
+   `<div class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
+     <input class="md:col-span-2" placeholder="Cari kode resi, customer, brand, model...">
+     ${sel(['Semua Status',...Object.values(STATUS_LABEL)])}
+     <span class="btn" style="background:#4f46e5">Filter</span>
+   </div>` + table(['Kode Resi','Customer','Perangkat','Teknisi','Status','Aksi'], rows),
+   btn('Tambah Layanan','#111827',"go('order-form')"));
+}
+
+function pageOrderForm(){
+  return header('Tambah / Edit Layanan Perbaikan','Formulir pencatatan layanan perbaikan perangkat.') +
+  card('Form Layanan','', `<div class="space-y-6">
+   <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+     ${field('Pilih Customer', sel(customers.map(c=>c.name)))}
+     ${field('Pilih Perangkat', sel(devices.map(d=>d.brand+' '+d.model)))}
+   </div>
+   <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+     ${field('Jenis Layanan', sel(['Pemeriksaan','Service','Perbaikan','Instalasi']))}
+     ${field('Lokasi Layanan', sel(['Di Toko','Kunjungan / On-site']))}
+     ${field('Teknisi', sel(['Belum Ditugaskan','Rian','Andi']))}
+   </div>
+   ${field('Keluhan Customer', ta('Laptop mati total, tidak bisa charge.'))}
+   <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+     ${field('Estimasi Biaya', inp('250000'))}
+     ${field('Biaya Jasa', inp('75000'))}
+     ${field('Biaya Sparepart', inp('100000'))}
+   </div>
+   <div class="border-t pt-6">
+    <h4 class="text-sm font-semibold text-gray-900 mb-1">Catatan Teknis</h4>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+     ${field('Catatan Diagnosis', ta('Kerusakan pada IC power.'))}
+     ${field('Catatan Pekerjaan', ta('Sedang proses penggantian IC power.'))}
+     ${field('Catatan Konfirmasi Customer', ta(''))}
+     ${field('Catatan Internal', ta(''))}
+    </div>
+   </div>
+   ${field('Status Layanan', sel(Object.values(STATUS_LABEL),'Perbaikan / Servis'))}
+   <div class="flex justify-end gap-3">${btn('Batal','#e5e7eb; color:#111827',"go('orders')")}${btn('Simpan','#111827',"go('orders')")}</div>
+  </div>`);
+}
+
+function pageOrderShow(){
+  const o = orders[0];
+  return header('Detail Layanan Perbaikan', 'Informasi lengkap layanan &amp; status perbaikan.') +
+  `<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+   <div class="md:col-span-2 space-y-6">
+    ${card(o.resi, o.date, `<div class="grid grid-cols-2 gap-3 text-sm text-gray-700 mb-4">
+      <div><b>Customer:</b> ${o.cust}</div><div><b>Perangkat:</b> ${o.device}</div>
+      <div><b>Teknisi:</b> ${o.tech}</div><div><b>Jenis Layanan:</b> ${o.type}</div>
+    </div>${badge(o.status)}`, btn('Cetak Resi','#0891b2',"go('order-receipt')"))}
+    ${card('Keluhan & Diagnosis','', `<p class="text-sm mb-3"><b>Keluhan:</b> ${o.complaint}</p><p class="text-sm mb-3"><b>Diagnosis:</b> ${o.diag}</p><p class="text-sm"><b>Progres Pekerjaan:</b> ${o.work}</p>`)}
+   </div>
+   <div class="space-y-6">
+    ${card('Rincian Biaya','', `<div class="text-sm space-y-2 text-gray-700">
+      <div class="flex justify-between"><span>Biaya Jasa</span><b>${fmtRp(o.fee)}</b></div>
+      <div class="flex justify-between"><span>Sparepart</span><b>${fmtRp(o.part)}</b></div>
+      <div class="flex justify-between border-t pt-2"><span>Total</span><b>${fmtRp(o.fee+o.part)}</b></div>
+    </div>`)}
+    ${card('Ubah Status','', `${sel(Object.values(STATUS_LABEL), STATUS_LABEL[o.status])}<div class="mt-3">${btn('Update Status','#111827')}</div>`)}
+   </div></div>`;
+}
+
+function pageOrderReceipt(){
+  const o = orders[0];
+  return `<div class="max-w-md mx-auto card p-6">
+   <div class="text-center mb-4"><div class="font-bold text-lg">Masagi Computer</div><p class="text-xs text-gray-500">Jl. Pelabuhan II, Sukabumi</p></div>
+   <div class="border-t border-b py-3 my-3 text-sm space-y-1">
+     <div class="flex justify-between"><span>No. Resi</span><b>${o.resi}</b></div>
+     <div class="flex justify-between"><span>Tanggal</span><b>${o.date}</b></div>
+     <div class="flex justify-between"><span>Customer</span><b>${o.cust}</b></div>
+     <div class="flex justify-between"><span>Perangkat</span><b>${o.device}</b></div>
+     <div class="flex justify-between"><span>Keluhan</span><b class="text-right">${o.complaint}</b></div>
+   </div>
+   <div class="text-sm space-y-1">
+     <div class="flex justify-between"><span>Biaya Jasa</span><b>${fmtRp(o.fee)}</b></div>
+     <div class="flex justify-between"><span>Sparepart</span><b>${fmtRp(o.part)}</b></div>
+     <div class="flex justify-between border-t pt-2 mt-1"><span>Total</span><b>${fmtRp(o.fee+o.part)}</b></div>
+   </div>
+   <p class="text-center text-xs text-gray-400 mt-4">Cek status servis di halaman tracking dengan No. Resi ini.</p>
+   <div class="text-center mt-4">${btn('Cetak','#111827')}</div>
+  </div>`;
+}
+
+function pageTechnician(){
+  const mine = orders.filter(o=>o.tech==='Rian');
+  return header('Layanan Saya','Daftar layanan perbaikan yang ditugaskan kepada Anda.') +
+  card('Tugas Perbaikan','', table(['Resi','Customer','Perangkat','Status','Aksi'], mine.map(o=>[o.resi,o.cust,o.device,badge(o.status),`<span class="text-indigo-600 font-semibold cursor-pointer" onclick="go('order-show')">Update</span>`])));
+}
+
+function pageTracking(){
+  return `<div class="max-w-lg mx-auto">
+  <div class="text-center mb-6"><h2 class="text-xl font-bold text-gray-900">Lacak Status Servis</h2><p class="text-sm text-gray-500 mt-1">Masukkan kode resi untuk melihat status perbaikan perangkat Anda.</p></div>
+  ${card('','', `${field('Kode Resi', inp('MSG-20260910-001'))}<div class="mt-4">${btn('Lacak Sekarang','#111827',"go('tracking-result')")}</div>`)}
+  </div>`;
+}
+
+function pageTrackingResult(){
+  const o = orders[0];
+  const steps = ['pemeriksaan','disetujui','perbaikan_servis','siap_diambil','selesai'];
+  const idx = steps.indexOf(o.status);
+  return `<div class="max-w-lg mx-auto">
+   ${card(o.resi, `${o.cust} &middot; ${o.device}`, `
+    <div class="flex justify-between mb-6">${steps.map((s,i)=>`<div class="text-center flex-1"><div class="w-6 h-6 rounded-full mx-auto text-white text-xs flex items-center justify-center" style="background:${i<=idx?'#16a34a':'#e5e7eb'}">${i+1}</div><p class="text-[10px] mt-1 text-gray-500">${STATUS_LABEL[s]}</p></div>`).join('')}</div>
+    <p class="text-sm mb-2"><b>Status saat ini:</b> ${badge(o.status)}</p>
+    <p class="text-sm text-gray-600">${o.work}</p>`)}
+   <div class="text-center mt-4"><span class="text-indigo-600 text-sm font-semibold cursor-pointer" onclick="go('tracking')">&larr; Lacak resi lain</span></div>
+  </div>`;
+}
+
+function pageReports(){
+  const total = orders.reduce((a,o)=>a+o.fee+o.part,0);
+  return header('Laporan Layanan','Rekap data layanan perbaikan berdasarkan periode dan status.') +
+  `<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+    <div class="card p-5"><p class="text-sm text-gray-500">Total Layanan</p><p class="text-2xl font-bold">${orders.length}</p></div>
+    <div class="card p-5"><p class="text-sm text-gray-500">Layanan Selesai</p><p class="text-2xl font-bold text-green-600">${orders.filter(o=>o.status==='selesai').length}</p></div>
+    <div class="card p-5"><p class="text-sm text-gray-500">Total Pendapatan</p><p class="text-2xl font-bold">${fmtRp(total)}</p></div>
+  </div>
+  ${card('Filter Laporan','', `<div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+    <div>${field('Dari Tanggal', '<input type="date" value="2026-09-01">')}</div>
+    <div>${field('Sampai Tanggal', '<input type="date" value="2026-09-17">')}</div>
+    <div>${field('Status', sel(['Semua Status',...Object.values(STATUS_LABEL)]))}</div>
+    <div class="flex items-end">${btn('Terapkan &amp; Export','#047857')}</div>
+  </div>`)}
+  <div class="mt-6">${card('Rekap Layanan','', table(['Resi','Customer','Teknisi','Status','Total Biaya'], orders.map(o=>[o.resi,o.cust,o.tech,badge(o.status),fmtRp(o.fee+o.part)])))}</div>`;
+}
+
+function pageUsers(){
+  return header('Manajemen User','Mengelola akun pengguna sistem Masagi Computer.') +
+  card('Daftar User','', table(['Nama','Email','Role','Aksi'], users.map(u=>[u.name,u.email,`<span class="badge" style="background:#374151">${ROLE_LABEL[u.role]}</span>`,`<span class="text-yellow-600 font-semibold cursor-pointer mr-2" onclick="go('user-form')">Edit</span><span class="text-red-600 font-semibold cursor-pointer">Hapus</span>`])),
+   btn('Tambah User','#111827',"go('user-form')"));
+}
+
+function pageUserForm(){
+  return header('Tambah / Edit User','Formulir akun pengguna sistem.') +
+  card('Form User','', `<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    ${field('Nama', inp('Rian Pratama'))}
+    ${field('Email', inp('rian@masagi.id'))}
+    ${field('Password', '<input type="password" placeholder="Kosongkan jika tidak diubah">')}
+    ${field('Role', sel(Object.values(ROLE_LABEL)))}
+  </div>
+  <div class="flex justify-end gap-3 mt-6">${btn('Batal','#e5e7eb; color:#111827',"go('users')")}${btn('Simpan','#111827',"go('users')")}</div>`);
+}
+
+function pageProfile(){
+  return header('Profil','Kelola informasi profil dan keamanan akun Anda.') +
+  `<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+   ${card('Informasi Profil','Perbarui nama dan alamat email akun Anda.', `${field('Nama', inp('Admin Utama'))}${field('Email', inp('admin@masagi.id'))}<div class="mt-4">${btn('Simpan','#111827')}</div>`)}
+   ${card('Ubah Password','Gunakan password yang kuat dan unik.', `${field('Password Saat Ini','<input type="password">')}${field('Password Baru','<input type="password">')}${field('Konfirmasi Password','<input type="password">')}<div class="mt-4">${btn('Simpan','#111827')}</div>`)}
+  </div>`;
+}
+
+const PAGES = {
+  login: pageLogin, dashboard: pageDashboard, technician: pageTechnician,
+  customers: pageCustomers, 'customer-form': pageCustomerForm, 'customer-show': pageCustomerShow, 'device-form': pageDeviceForm,
+  orders: pageOrders, 'order-form': pageOrderForm, 'order-show': pageOrderShow, 'order-receipt': pageOrderReceipt,
+  tracking: pageTracking, 'tracking-result': pageTrackingResult,
+  reports: pageReports, users: pageUsers, 'user-form': pageUserForm, profile: pageProfile,
+};
+
+function go(page){
+  state.page = page;
+  render();
+  window.scrollTo(0,0);
+}
+function setRole(r){ state.role = r; render(); }
+
+function initials(role){ return ROLE_LABEL[role].split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase(); }
+
+function render(){
+  const isFull = state.page === 'login';
+  const navHtml = NAV.filter(n=>n.roles.includes(state.role)).map(n=>
+    `<div class="navlink ${matchesNav(n.id)?'active':''}" onclick="go('${n.id}')"><span class="ic">${n.ic}</span>${n.label}</div>`
+  ).join('');
+
+  document.getElementById('app').innerHTML = isFull ? `<div class="w-full">${PAGES[state.page]()}</div>` : `
+  <aside class="w-64 shrink-0 hidden md:flex flex-col" style="background:linear-gradient(190deg,#12101f,#1e1b4b)">
+    <div class="flex items-center gap-3 px-5 py-6 border-b border-white/[0.06]">
+      <div class="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-sm font-display" style="background:linear-gradient(135deg,var(--accent),#818cf8)">MC</div>
+      <div><p class="font-display font-semibold text-sm text-white leading-none">Masagi Computer</p><p class="text-xs text-slate-400 mt-1.5">Service Management</p></div>
+    </div>
+    <nav class="space-y-1 px-3 flex-1 pt-4">${navHtml}</nav>
+    <div class="px-5 py-4 text-xs text-slate-500 border-t border-white/[0.06]">v1.0 &middot; Prototype UI</div>
+  </aside>
+  <main class="flex-1 p-6 md:p-8 min-w-0">
+    <div class="flex items-center justify-between mb-6 card px-5 py-3.5">
+      <div class="text-sm text-gray-500">Login sebagai <b class="text-gray-800">${ROLE_LABEL[state.role]}</b></div>
+      <div class="flex items-center gap-3">
+        <select onchange="setRole(this.value)" class="text-sm !w-auto">
+          ${Object.keys(ROLE_LABEL).map(r=>`<option value="${r}" ${r===state.role?'selected':''}>${ROLE_LABEL[r]}</option>`).join('')}
+        </select>
+        <div class="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold font-display" style="background:linear-gradient(135deg,var(--accent),#818cf8)">${initials(state.role)}</div>
+        <span class="btn" style="background:#dc2626" onclick="go('login')">Keluar</span>
+      </div>
+    </div>
+    <div>${PAGES[state.page]()}</div>
+  </main>`;
+}
+function matchesNav(id){
+  const p = state.page;
+  if(id==='customers') return ['customers','customer-form','customer-show','device-form'].includes(p);
+  if(id==='orders') return ['orders','order-form','order-show','order-receipt'].includes(p);
+  if(id==='tracking') return ['tracking','tracking-result'].includes(p);
+  if(id==='users') return ['users','user-form'].includes(p);
+  return id===p;
+}
+render();
+</script>
+</body>
+</html>
